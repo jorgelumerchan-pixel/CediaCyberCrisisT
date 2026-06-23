@@ -1,0 +1,999 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calculadora Comercial de Servicios de Seguridad · CEDIA</title>
+
+<!--
+  ============================================================================
+  CALCULADORA COMERCIAL DE SERVICIOS DE SEGURIDAD — CEDIA
+  ----------------------------------------------------------------------------
+  Herramienta interna para el equipo comercial. Permite cotizar:
+    (A) Paquetes predefinidos: ÍNFIMA / BASE / AVANZADO / ESTRATÉGICO
+    (B) Configuraciones personalizadas armando servicios individuales.
+
+  FUENTE DE DATOS (no se inventan precios):
+    - "SOC_MSSP_Costos_v4.xlsx"  (modelo de costos)
+    - Imagen 1: características y PVP anual por paquete
+    - Imagen 2: desglose de COSTO base anual por componente y paquete
+
+  LÓGICA DE CÁLCULO (según especificación):
+    Costo total base = costo unitario × cantidad
+    PVP final        = costo total base / (1 − margen)        [margen en fracción]
+    Ejemplo: margen 30%  ->  PVP = costo / 0.70
+
+  COSTOS UNITARIOS DERIVADOS (anuales, USD) — verificados contra la Imagen 2:
+    Nivel de Madurez ........ $19.694 / hora     (17h=334.79 … 40h=787.75)
+    CSIRT ................... $31.6815 / hora     (12h=380.18 … 60h=1900.88)
+    SGSI/EGSI ............... $19.694 / hora      (20h=393.88 … 70h=1378.56)
+    PDP ..................... $15.4125 / hora     (20h=308.25 … 70h=1078.88)
+    Diagnóstico Arq. Seg. ... $25.6917 / hora     (60h=1541.50)
+    VOC EASM ................ $1356.00 / dominio principal (licencia, valor plano)
+    VOC Protección de Marca . $1156.56 / dominio principal (licencia, valor plano)
+    VOC Hardening ........... $65.00 / IP         (50 IP=3250)
+    VOC Threat Intelligence . $924.90 / año        (valor plano, sólo ESTRATÉGICO)
+    Pentesting / Hacking ético $1500.00 / activo   (caja blanca, 1 activo=1500)
+    SOC 24/7 (por dispositivo/año, según nivel):
+        Inicial = $397.80 · Básico = $371.832 · Medio = $351.0528 · Avanzado = $559.04
+    VOC Análisis de Vulnerabilidades: costo escalonado por volumen
+        ≈ $10/IP (≤90) · $5/IP (250–350) · $4/IP (≥500)  -> editable en la cotización.
+
+  VALOR PENDIENTE (no disponible en el Excel):
+    Laboratorios/CTF por PARTICIPANTE: no consta en la fuente.
+    Referencia conocida por ejercicio: 1=$560, 2=$860.
+    Se entrega como COSTO_PENDIENTE = 0 y debe completarse manualmente.
+
+  Recurso externo único: tipografía Montserrat (Google Fonts), aproxima a
+  "Gotham" (tipografía oficial CEDIA). Si no hay conexión, usa sans-serif del
+  sistema sin afectar el funcionamiento. El resto (CSS/JS) está embebido y
+  funciona localmente sin servidores ni frameworks.
+  ============================================================================
+-->
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<style>
+  /* ===== Paleta institucional CEDIA (azul / cian) ====================== */
+  :root{
+    --navy:#0A2A4A;        /* azul institucional profundo            */
+    --navy-2:#103a63;      /* azul medio para degradado de cabecera  */
+    --blue:#0B5FB0;        /* azul CEDIA primario                    */
+    --blue-soft:#e8f1fb;   /* azul muy claro para fondos suaves      */
+    --cyan:#16A9D6;        /* cian de acento                         */
+    --cyan-deep:#0e87ad;
+    --bg:#F4F7FB;          /* fondo general claro                    */
+    --surface:#FFFFFF;
+    --ink:#152433;         /* texto principal                        */
+    --muted:#5d6f80;       /* texto secundario                       */
+    --line:#e1e9f1;        /* bordes / separadores                   */
+    --ok:#1e9e6a;
+    --ok-soft:#e6f6ee;
+    --warn:#b87914;
+    --warn-soft:#fbf2e0;
+    --danger:#c2453b;
+    --danger-soft:#fbeae8;
+    --radius:12px;
+    --shadow:0 1px 2px rgba(16,40,70,.06), 0 6px 24px rgba(16,40,70,.06);
+    --font:'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:var(--font);
+    color:var(--ink);
+    background:var(--bg);
+    line-height:1.45;
+    -webkit-font-smoothing:antialiased;
+    font-variant-numeric:tabular-nums;
+  }
+  h1,h2,h3{margin:0;font-weight:700;letter-spacing:-.01em;}
+  button{font-family:inherit;cursor:pointer;}
+  input,select{font-family:inherit;}
+
+  /* ===== Cabecera institucional ======================================= */
+  .topbar{
+    background:linear-gradient(110deg, var(--navy) 0%, var(--navy-2) 60%, #14507f 100%);
+    color:#fff;
+    padding:18px 26px;
+    display:flex;align-items:center;gap:20px;
+    border-bottom:3px solid var(--cyan);
+  }
+  /* Espacio reservado para el logo oficial de CEDIA */
+  .logo-slot{
+    flex:0 0 auto;width:118px;height:46px;border-radius:8px;
+    background:rgba(255,255,255,.10);
+    border:1px dashed rgba(255,255,255,.45);
+    display:flex;align-items:center;justify-content:center;
+    color:rgba(255,255,255,.85);font-size:11px;font-weight:600;text-align:center;
+    letter-spacing:.04em;overflow:hidden;
+  }
+  /* <!-- Insertar aquí el logo oficial de CEDIA: reemplace .logo-slot por <img src="..."> --> */
+  .brand-text{display:flex;flex-direction:column;gap:2px;}
+  .brand-text .org{font-size:12px;letter-spacing:.18em;color:var(--cyan);font-weight:700;text-transform:uppercase;}
+  .brand-text h1{font-size:20px;font-weight:800;}
+  .brand-text .tag{font-size:12px;color:rgba(255,255,255,.72);}
+  .topbar-right{margin-left:auto;text-align:right;display:flex;flex-direction:column;gap:4px;}
+  .badge-internal{
+    align-self:flex-end;background:var(--cyan);color:#04222e;font-weight:700;
+    font-size:11px;letter-spacing:.05em;padding:4px 10px;border-radius:999px;text-transform:uppercase;
+  }
+  .topbar-right .meta{font-size:11.5px;color:rgba(255,255,255,.70);}
+
+  /* ===== Barra de herramientas / parámetros ========================== */
+  .toolbar{
+    background:var(--surface);border-bottom:1px solid var(--line);
+    padding:12px 26px;display:flex;align-items:center;gap:18px;flex-wrap:wrap;
+    position:sticky;top:0;z-index:30;
+  }
+  .toolbar .field{display:flex;align-items:center;gap:8px;}
+  .toolbar label{font-size:12.5px;font-weight:600;color:var(--muted);}
+  .margin-input{
+    width:78px;padding:7px 9px;border:1px solid var(--line);border-radius:8px;
+    font-size:14px;font-weight:700;color:var(--navy);text-align:right;
+  }
+  .margin-input:focus{outline:2px solid var(--cyan);outline-offset:1px;border-color:var(--cyan);}
+  .toolbar .spacer{flex:1;}
+  .btn{
+    border:1px solid var(--line);background:var(--surface);color:var(--ink);
+    padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;
+    display:inline-flex;align-items:center;gap:7px;transition:.15s;
+  }
+  .btn:hover{border-color:var(--cyan);color:var(--cyan-deep);}
+  .btn-primary{background:var(--blue);border-color:var(--blue);color:#fff;}
+  .btn-primary:hover{background:var(--navy);border-color:var(--navy);color:#fff;}
+  .btn-ghost-danger:hover{border-color:var(--danger);color:var(--danger);}
+  .btn svg{width:15px;height:15px;}
+
+  /* ===== Layout principal ============================================ */
+  .wrap{max-width:1320px;margin:0 auto;padding:24px 26px 60px;}
+  .layout{display:grid;grid-template-columns:1fr 430px;gap:24px;align-items:start;}
+  @media(max-width:1024px){
+    .layout{grid-template-columns:1fr;}
+    .summary{position:static;max-height:none;}
+    .summary-body{overflow:visible;}
+  }
+
+  .section{margin-bottom:26px;}
+  .section-head{display:flex;align-items:baseline;gap:12px;margin-bottom:14px;}
+  .section-head h2{font-size:16px;color:var(--navy);}
+  .section-head .hint{font-size:12.5px;color:var(--muted);}
+  .eyebrow{
+    font-size:10.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--cyan-deep);
+  }
+
+  /* ===== Pestañas ==================================================== */
+  .tabs{display:flex;gap:6px;background:#eaf0f7;padding:5px;border-radius:10px;width:fit-content;margin-bottom:20px;}
+  .tab{
+    border:none;background:transparent;padding:8px 18px;border-radius:7px;
+    font-size:13.5px;font-weight:700;color:var(--muted);transition:.15s;
+  }
+  .tab.active{background:var(--surface);color:var(--navy);box-shadow:0 1px 3px rgba(16,40,70,.12);}
+
+  /* ===== Tarjetas de paquetes ======================================== */
+  .pkg-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
+  @media(max-width:1200px){.pkg-grid{grid-template-columns:repeat(2,1fr);}}
+  @media(max-width:560px){.pkg-grid{grid-template-columns:1fr;}}
+  .pkg-card{
+    background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+    padding:16px;display:flex;flex-direction:column;gap:10px;box-shadow:var(--shadow);
+    border-top:4px solid var(--cyan);position:relative;
+  }
+  .pkg-card[data-k="infima"]{border-top-color:#7aa7cf;}
+  .pkg-card[data-k="base"]{border-top-color:#2f86c9;}
+  .pkg-card[data-k="avanzado"]{border-top-color:var(--blue);}
+  .pkg-card[data-k="estrategico"]{border-top-color:var(--navy);}
+  .pkg-card .pk-name{font-size:14px;font-weight:800;color:var(--navy);}
+  .pkg-card .pk-sub{font-size:11.5px;color:var(--muted);min-height:30px;}
+  .pkg-card .pk-perfil{font-size:11px;color:var(--cyan-deep);font-weight:600;}
+  .pkg-card .pk-pvp{font-size:22px;font-weight:800;color:var(--ink);margin-top:2px;}
+  .pkg-card .pk-pvp small{font-size:11px;color:var(--muted);font-weight:600;display:block;letter-spacing:.02em;}
+  .pkg-card .pk-cost{font-size:11.5px;color:var(--muted);}
+  .pkg-card ul{margin:6px 0 0;padding-left:16px;font-size:11.5px;color:var(--muted);display:flex;flex-direction:column;gap:3px;}
+  .pkg-card .pk-value{font-size:11px;font-style:italic;color:var(--cyan-deep);margin-top:auto;}
+  .pkg-card .btn{justify-content:center;margin-top:8px;}
+
+  /* ===== Catálogo de servicios (modo personalizado) ================== */
+  .verb-group{margin-bottom:18px;}
+  .verb-bar{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+  .verb-bar .num{
+    width:26px;height:26px;border-radius:7px;background:var(--blue-soft);color:var(--blue);
+    display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex:0 0 auto;
+  }
+  .verb-bar .verb-name{font-size:13.5px;font-weight:800;color:var(--navy);}
+  .verb-bar .verb-desc{font-size:11.5px;color:var(--muted);}
+  .svc-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  @media(max-width:680px){.svc-grid{grid-template-columns:1fr;}}
+  .svc-card{
+    background:var(--surface);border:1px solid var(--line);border-radius:10px;
+    padding:13px 14px;display:flex;flex-direction:column;gap:9px;
+  }
+  .svc-card.pending{border-color:#e7cf9a;background:var(--warn-soft);}
+  .svc-card .svc-name{font-size:13px;font-weight:700;color:var(--ink);}
+  .svc-card .svc-note{font-size:11px;color:var(--muted);line-height:1.35;}
+  .svc-card .svc-row{display:flex;align-items:flex-end;gap:9px;}
+  .svc-card .ctrl{display:flex;flex-direction:column;gap:3px;flex:1;}
+  .svc-card .ctrl label{font-size:10.5px;font-weight:600;color:var(--muted);}
+  .svc-card input, .svc-card select{
+    padding:7px 8px;border:1px solid var(--line);border-radius:7px;font-size:13px;width:100%;
+    background:#fff;color:var(--ink);
+  }
+  .svc-card input:focus, .svc-card select:focus{outline:2px solid var(--cyan);outline-offset:1px;border-color:var(--cyan);}
+  .svc-card .unit-tag{font-size:11px;color:var(--cyan-deep);font-weight:700;}
+  .svc-card .add-btn{
+    flex:0 0 auto;background:var(--blue);color:#fff;border:none;border-radius:7px;
+    width:38px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;
+  }
+  .svc-card .add-btn:hover{background:var(--navy);}
+  .pending-flag{font-size:10px;font-weight:800;color:var(--warn);letter-spacing:.05em;text-transform:uppercase;}
+
+  /* ===== Panel de cotización (resumen) =============================== */
+  .summary{
+    background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+    box-shadow:var(--shadow);position:sticky;top:74px;overflow:hidden;
+    /* Panel acotado a la ventana: la cabecera y los totales quedan fijos y
+       la lista de ítems hace scroll interno -> todo el resumen es alcanzable */
+    display:flex;flex-direction:column;max-height:calc(100vh - 92px);
+  }
+  .summary-head{background:var(--navy);color:#fff;padding:14px 18px;flex:0 0 auto;}
+  .summary-head h2{font-size:15px;color:#fff;}
+  .summary-head .sub{font-size:11.5px;color:rgba(255,255,255,.7);}
+  .summary-body{padding:6px 0 0;flex:1 1 auto;overflow-y:auto;min-height:0;}
+  .totals{flex:0 0 auto;}
+  .summary-actions{flex:0 0 auto;}
+  .empty-state{padding:34px 22px;text-align:center;color:var(--muted);font-size:13px;}
+  .empty-state svg{width:34px;height:34px;opacity:.4;margin-bottom:8px;}
+
+  table.cart{width:100%;border-collapse:collapse;font-size:12px;}
+  table.cart thead th{
+    text-align:left;font-size:10px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);
+    font-weight:700;padding:8px 8px;border-bottom:1px solid var(--line);background:#fafcfe;
+  }
+  table.cart thead th.r{text-align:right;}
+  table.cart tbody td{padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:top;}
+  table.cart tbody tr.invalid{background:var(--danger-soft);}
+  table.cart tbody tr.pending{background:var(--warn-soft);}
+  .ci-name{font-weight:700;color:var(--ink);font-size:12.5px;}
+  .ci-verb{font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--cyan-deep);}
+  .ci-detail{font-size:10.5px;color:var(--muted);}
+  .cart-input{width:62px;padding:5px 6px;border:1px solid var(--line);border-radius:6px;font-size:12px;text-align:right;}
+  .cart-input.unit{width:74px;}
+  .cart-input.margin{width:52px;}
+  .cart-input:focus{outline:2px solid var(--cyan);outline-offset:1px;border-color:var(--cyan);}
+  .num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;}
+  .pvp-cell{font-weight:800;color:var(--navy);}
+  .rm-btn{border:none;background:none;color:var(--muted);font-size:15px;line-height:1;padding:2px 4px;border-radius:5px;}
+  .rm-btn:hover{color:var(--danger);background:var(--danger-soft);}
+  .row-warn{font-size:10px;color:var(--warn);margin-top:3px;}
+  .row-err{font-size:10px;color:var(--danger);margin-top:3px;}
+
+  .totals{padding:14px 18px;background:#fafcfe;border-top:1px solid var(--line);}
+  .totals .line{display:flex;justify-content:space-between;font-size:12.5px;color:var(--muted);padding:3px 0;}
+  .totals .line strong{color:var(--ink);}
+  .totals .grand{
+    display:flex;justify-content:space-between;align-items:baseline;
+    margin-top:8px;padding-top:10px;border-top:2px solid var(--line);
+  }
+  .totals .grand .lbl{font-size:13px;font-weight:700;color:var(--navy);}
+  .totals .grand .val{font-size:24px;font-weight:800;color:var(--navy);}
+  .totals .grand .val small{font-size:12px;color:var(--muted);font-weight:600;}
+  .summary-actions{padding:12px 18px;display:flex;gap:8px;border-top:1px solid var(--line);}
+  .summary-actions .btn{flex:1;justify-content:center;}
+
+  /* ===== Mensajes de validación ===================================== */
+  .alerts{margin-bottom:16px;display:flex;flex-direction:column;gap:8px;}
+  .alert{
+    padding:10px 14px;border-radius:9px;font-size:12.5px;display:flex;gap:9px;align-items:flex-start;
+    border:1px solid;
+  }
+  .alert svg{width:16px;height:16px;flex:0 0 auto;margin-top:1px;}
+  .alert.err{background:var(--danger-soft);border-color:#eccac6;color:#8f2f27;}
+  .alert.warn{background:var(--warn-soft);border-color:#e7d4a8;color:#7a5310;}
+
+  .footer{
+    max-width:1320px;margin:0 auto;padding:18px 26px 40px;color:var(--muted);font-size:11px;line-height:1.5;
+  }
+  .footer strong{color:var(--ink);}
+
+  /* ===== Impresión / Exportar PDF =================================== */
+  .print-head{display:none;}
+  @media print{
+    @page{margin:14mm;}
+    body{background:#fff;}
+    .topbar,.toolbar,.tabs,.section.no-print,.summary-actions,.alerts,.svc-card .add-btn,.footer{display:none !important;}
+    .wrap{padding:0;max-width:none;}
+    .layout{display:block;}
+    .summary{box-shadow:none;border:none;position:static;max-height:none !important;display:block !important;}
+    .summary-body{overflow:visible !important;max-height:none !important;}
+    .summary-head{background:#fff;color:var(--navy);border-bottom:2px solid var(--navy);padding-left:0;}
+    .summary-head h2{color:var(--navy);}
+    .summary-head .sub{color:var(--muted);}
+    .print-head{display:block;margin-bottom:14px;border-bottom:2px solid var(--cyan);padding-bottom:10px;}
+    .print-head .org{font-size:11px;letter-spacing:.16em;color:var(--cyan-deep);font-weight:800;text-transform:uppercase;}
+    .print-head .ttl{font-size:18px;font-weight:800;color:var(--navy);}
+    .print-head .meta{font-size:11px;color:var(--muted);margin-top:4px;}
+    .cart-input{border:none;padding:0;width:auto;text-align:right;background:transparent;-webkit-appearance:none;appearance:none;}
+    .cart-input.unit,.cart-input.margin{width:auto;}
+    .rm-btn{display:none;}
+    table.cart thead th{background:#fff;}
+    .totals{background:#fff;}
+  }
+</style>
+</head>
+<body>
+
+<!-- ============================ CABECERA ============================ -->
+<header class="topbar">
+  <!-- Insertar aquí el logo oficial de CEDIA (reemplazar el contenedor .logo-slot por <img>) -->
+  <div class="logo-slot">LOGO<br>CEDIA</div>
+  <div class="brand-text">
+    <span class="org">CEDIA · Ciberseguridad</span>
+    <h1>Calculadora Comercial de Servicios de Seguridad</h1>
+    <span class="tag">Conectando Ideas, Transformando Sociedades</span>
+  </div>
+  <div class="topbar-right">
+    <span class="badge-internal">Uso interno · Equipo comercial</span>
+    <span class="meta" id="todayMeta"></span>
+  </div>
+</header>
+
+<!-- ====================== BARRA DE PARÁMETROS ======================= -->
+<div class="toolbar no-print">
+  <div class="field">
+    <label for="globalMargin">Margen comercial por defecto</label>
+    <input type="number" id="globalMargin" class="margin-input" value="30" min="0" max="99" step="1" aria-label="Margen por defecto en porcentaje"> 
+    <span style="font-weight:700;color:var(--navy)">%</span>
+  </div>
+  <button class="btn" id="applyMarginAll" title="Aplica el margen por defecto a todos los ítems del resumen">Aplicar a todo el resumen</button>
+  <div class="spacer"></div>
+  <button class="btn btn-ghost-danger" id="clearAll">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>
+    Limpiar calculadora
+  </button>
+  <button class="btn btn-primary" id="printQuote">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6z"/></svg>
+    Imprimir / Exportar cotización
+  </button>
+</div>
+
+<div class="wrap">
+  <div class="layout">
+
+    <!-- ====================== COLUMNA IZQUIERDA ====================== -->
+    <div>
+      <div class="alerts no-print" id="alerts"></div>
+
+      <div class="tabs no-print">
+        <button class="tab active" data-tab="paquetes">Paquetes comerciales</button>
+        <button class="tab" data-tab="servicios">Configuración personalizada</button>
+      </div>
+
+      <!-- -------- Modo A: Paquetes predefinidos -------- -->
+      <section class="section no-print" id="tab-paquetes">
+        <div class="section-head">
+          <span class="eyebrow">Modo A</span>
+          <h2>Paquetes de ciberresiliencia</h2>
+          <span class="hint">Cargue un paquete para ver y editar sus servicios en el resumen.</span>
+        </div>
+        <div class="pkg-grid" id="pkgGrid"></div>
+      </section>
+
+      <!-- -------- Modo B: Servicios individuales -------- -->
+      <section class="section no-print" id="tab-servicios" style="display:none;">
+        <div class="section-head">
+          <span class="eyebrow">Modo B</span>
+          <h2>Servicios individuales</h2>
+          <span class="hint">Ingrese la variable de cada servicio y agréguelo al resumen.</span>
+        </div>
+        <div id="catalog"></div>
+      </section>
+    </div>
+
+    <!-- ====================== COLUMNA DERECHA (RESUMEN) ====================== -->
+    <aside class="summary" id="summary">
+      <div class="print-head">
+        <div class="org">CEDIA · Corporación Ecuatoriana para el Desarrollo de la Investigación y la Academia</div>
+        <div class="ttl">Cotización de Servicios de Ciberseguridad</div>
+        <div class="meta" id="printMeta"></div>
+      </div>
+      <div class="summary-head">
+        <h2>Resumen de la cotización</h2>
+        <span class="sub" id="summaryCount">Sin ítems seleccionados</span>
+      </div>
+      <div class="summary-body" id="summaryBody"></div>
+      <div class="totals" id="totals" style="display:none;">
+        <div class="line"><span>Subtotal costo base</span><strong id="tBase">$0.00</strong></div>
+        <div class="line"><span>Margen comercial aplicado</span><strong id="tMargin">$0.00</strong></div>
+        <div class="line"><span>Margen promedio</span><strong id="tMarginPct">0.0%</strong></div>
+        <div class="grand">
+          <span class="lbl">PVP TOTAL <small>(anual)</small></span>
+          <span class="val" id="tPvp">$0.00 <small>USD</small></span>
+        </div>
+      </div>
+      <div class="summary-actions no-print">
+        <button class="btn btn-ghost-danger" id="clearAll2">Vaciar</button>
+        <button class="btn btn-primary" id="printQuote2">Imprimir / Exportar</button>
+      </div>
+    </aside>
+
+  </div>
+</div>
+
+<footer class="footer">
+  <strong>CEDIA</strong> — Gonzalo Cordero 2-122 y J. Fajardo, Cuenca · Ecuador · www.cedia.edu.ec ·
+  Precios anuales en USD. La fórmula aplicada es <strong>PVP = Costo base ÷ (1 − margen)</strong>.
+  Los costos base provienen del modelo institucional de costos. Laboratorios/CTF se cotiza a
+  <strong>$900 por ejercicio</strong>, sin importar el número de participantes.
+  Documento referencial; no constituye oferta vinculante.
+</footer>
+
+<script>
+/* ============================================================================
+   1) DATOS — COSTOS UNITARIOS Y CATÁLOGO DE SERVICIOS
+   Todos los valores derivan del Excel / Imagen 2 (ver comentarios de cabecera).
+   Modificar aquí para actualizar precios en el futuro.
+   ========================================================================== */
+
+// Valor no disponible en la fuente -> debe completarse manualmente.
+const COSTO_PENDIENTE = 0; // CTF por participante (no consta en el Excel)
+
+// Niveles de SOC 24/7 -> costo por dispositivo/año (derivado de Imagen 2)
+const SOC_TIERS = [
+  { id:'inicial',  label:'Inicial (5 activos)',   unit:397.80   },
+  { id:'basico',   label:'Básico (10 activos)',    unit:371.832  },
+  { id:'medio',    label:'Medio (50 activos)',     unit:351.0528 },
+  { id:'avanzado', label:'Avanzado (100 activos)', unit:559.04   }
+];
+
+// Frecuencias de reportes ejecutivos -> costo fijo anual (Imagen 2)
+const REPORTE_FREQ = [
+  { id:'anual',       label:'Anual',        cost:60  },
+  { id:'semestral',   label:'Semestral',    cost:200 },
+  { id:'trimestral',  label:'Trimestral',   cost:300 },
+  { id:'trimestral+', label:'Trimestral +', cost:400 }
+];
+
+/* Catálogo agrupado por las 6 capacidades (verbos) del modelo CEDIA.
+   Cada servicio define su variable de cálculo y costo unitario por defecto. */
+const VERBOS = [
+  { id:'evaluar',   n:1, name:'Evaluar',   desc:'Nivel de Madurez' },
+  { id:'vigilar',   n:2, name:'Vigilar',   desc:'VOC — Centro de Operaciones de Vulnerabilidades' },
+  { id:'detectar',  n:3, name:'Detectar',  desc:'SOC 24/7' },
+  { id:'responder', n:4, name:'Responder', desc:'CSIRT' },
+  { id:'probar',    n:5, name:'Probar',    desc:'Pentesting / Hacking Ético' },
+  { id:'gobernar',  n:6, name:'Gobernar',  desc:'SGSI/EGSI · PDP · Reportes' }
+];
+
+const CATALOGO = [
+  // --- EVALUAR ---
+  { id:'madurez', verbo:'evaluar', name:'Nivel de Madurez',
+    varLabel:'Horas de informe', unidad:'h', unit:19.694, defQty:20,
+    note:'Tarifa hora-consultor. Costo según horas dedicadas a la presentación del informe (17h=$334.79 … 40h=$787.75).' },
+
+  // --- VIGILAR (VOC, bloque compuesto) ---
+  { id:'voc_vuln', verbo:'vigilar', grupo:'VOC', name:'Análisis de Vulnerabilidades',
+    varLabel:'Activos / IP', unidad:'IP', unit:5.00, defQty:250, unitEditableHint:true,
+    note:'Costo por IP/activo (editable por volumen): ≈ $10 (≤90) · $5 (250–350) · $4 (≥500).' },
+  { id:'voc_easm', verbo:'vigilar', grupo:'VOC', name:'EASM',
+    varLabel:'Dominios principales', unidad:'dominio', unit:1356.00, defQty:1,
+    note:'Licencia anual por dominio principal monitoreado (valor plano en la fuente).' },
+  { id:'voc_brand', verbo:'vigilar', grupo:'VOC', name:'Protección de Marca',
+    varLabel:'Dominios principales', unidad:'dominio', unit:1156.56, defQty:1,
+    note:'Licencia anual por dominio principal (protección de marca / threat intel de superficie).' },
+  { id:'voc_hard', verbo:'vigilar', grupo:'VOC', name:'Hardening',
+    varLabel:'Activos / IP', unidad:'IP', unit:65.00, defQty:50,
+    note:'Derivado de ESTRATÉGICO: 50 activos = $3 250 ⇒ $65 por IP.' },
+  { id:'voc_ti', verbo:'vigilar', grupo:'VOC', name:'Threat Intelligence y cooperación internacional',
+    varLabel:'Servicio anual', unidad:'serv.', unit:924.90, defQty:1, fixed:true,
+    note:'Costo fijo anual (incluido sólo en el paquete ESTRATÉGICO).' },
+
+  // --- DETECTAR (SOC con selector de nivel) ---
+  { id:'soc', verbo:'detectar', name:'SOC 24/7',
+    varLabel:'Dispositivos / activos', unidad:'disp.', tieredSoc:true, unit:351.0528, defQty:50,
+    note:'Costo por dispositivo/año según nivel: Inicial $397.80 · Básico $371.83 · Medio $351.05 · Avanzado $559.04.' },
+
+  // --- RESPONDER (CSIRT + add-ons) ---
+  { id:'csirt', verbo:'responder', grupo:'CSIRT', name:'CSIRT',
+    varLabel:'Horas anuales', unidad:'h', unit:31.6815, defQty:20,
+    note:'Tarifa hora CSIRT. Costo según horas anuales (12h=$380.18 … 60h=$1 900.88).' },
+  { id:'csirt_ctf', verbo:'responder', grupo:'CSIRT', name:'Laboratorios y ejercicios CTF',
+    varLabel:'Ejercicios CTF / año', unidad:'ejercicio', unit:900.00, defQty:1,
+    note:'Costo fijo de $900 por ejercicio CTF, independientemente del número de participantes.' },
+  { id:'csirt_diag', verbo:'responder', grupo:'CSIRT', name:'Diagnóstico Arquitectura de seguridad institucional',
+    varLabel:'Horas anuales', unidad:'h', unit:25.6917, defQty:60,
+    note:'Derivado de ESTRATÉGICO: 60 h = $1 541.50 ⇒ $25.69 por hora.' },
+
+  // --- PROBAR ---
+  { id:'pentest', verbo:'probar', name:'Pentesting / Hacking Ético',
+    varLabel:'Activos a evaluar', unidad:'activo', unit:1500.00, defQty:1,
+    note:'Caja blanca: 1 activo = $1 500 ⇒ $1 500 por activo.' },
+
+  // --- GOBERNAR ---
+  { id:'sgsi', verbo:'gobernar', name:'SGSI / EGSI (acompañamiento)',
+    varLabel:'Horas anuales', unidad:'h', unit:19.694, defQty:30,
+    note:'Tarifa hora de soporte. Costo según horas anuales (20h=$393.88 … 70h=$1 378.56).' },
+  { id:'pdp', verbo:'gobernar', name:'PDP — Protección de Datos (acompañamiento)',
+    varLabel:'Horas anuales', unidad:'h', unit:15.4125, defQty:30,
+    note:'Tarifa hora de soporte LOPDP. Costo según horas anuales (20h=$308.25 … 70h=$1 078.88).' },
+  { id:'reportes', verbo:'gobernar', name:'Reportes ejecutivos',
+    varLabel:'Frecuencia', unidad:'reporte', freq:true, unit:300, defQty:1, fixed:true,
+    note:'Costo fijo anual según periodicidad (Anual $60 · Semestral $200 · Trimestral $300 · Trimestral+ $400).' }
+];
+
+const SVC = Object.fromEntries(CATALOGO.map(s => [s.id, s]));
+
+/* ============================================================================
+   2) PAQUETES PREDEFINIDOS — composición exacta (verificada vs Imagen 2)
+   "cost" es el costo base anual exacto de la fuente; el costo unitario se
+   deriva como cost/qty para permitir edición de cantidades en el resumen.
+   "margen" reproduce el PVP anual publicado en la Imagen 1.
+   ========================================================================== */
+const PAQUETES = {
+  infima: {
+    nombre:'ÍNFIMA', subtitulo:'Visibilidad Inicial', perfil:'Madurez 0',
+    valor:'Línea base y visibilidad', margen:0.31, pvpRef:9969,
+    items:[
+      { sid:'madurez',  qty:17, cost:334.79,  detalle:'Ejecutivo · informe 17 h' },
+      { sid:'voc_vuln', qty:90, cost:900.00,  detalle:'90 activos · informe semestral' },
+      { sid:'voc_easm', qty:1,  cost:1356.00, detalle:'1 dominio principal' },
+      { sid:'voc_brand',qty:1,  cost:1156.56, detalle:'1 dominio principal' },
+      { sid:'soc',      qty:5,  cost:1989.00, detalle:'Inicial · 5 activos', soc:'inicial' },
+      { sid:'csirt',    qty:12, cost:380.18,  detalle:'Notificaciones · 12 h anuales' },
+      { sid:'sgsi',     qty:20, cost:393.88,  detalle:'Ejecutivo · 20 h soporte' },
+      { sid:'pdp',      qty:20, cost:308.25,  detalle:'Ejecutivo · 20 h soporte' },
+      { sid:'reportes', qty:1,  cost:60.00,   detalle:'Anual', freq:'anual' }
+    ]
+  },
+  base: {
+    nombre:'BASE', subtitulo:'Ciberseguridad Esencial', perfil:'Madurez inicial',
+    valor:'Detección y respuesta básica', margen:0.43, pvpRef:17125.56,
+    items:[
+      { sid:'madurez',  qty:20,  cost:393.88,  detalle:'Estratégico · informe 20 h' },
+      { sid:'voc_vuln', qty:250, cost:1250.00, detalle:'250 activos · informe trimestral' },
+      { sid:'voc_easm', qty:1,   cost:1356.00, detalle:'1 dominio principal' },
+      { sid:'voc_brand',qty:1,   cost:1156.56, detalle:'1 dominio · informe trimestral' },
+      { sid:'soc',      qty:10,  cost:3718.32, detalle:'Básico · 10 activos', soc:'basico' },
+      { sid:'csirt',    qty:20,  cost:633.63,  detalle:'Gestión básica · 20 h anuales' },
+      { sid:'sgsi',     qty:30,  cost:590.81,  detalle:'Estratégico · 30 h soporte' },
+      { sid:'pdp',      qty:30,  cost:462.38,  detalle:'Estratégico · 30 h soporte' },
+      { sid:'reportes', qty:1,   cost:200.00,  detalle:'Semestral', freq:'semestral' }
+    ]
+  },
+  avanzado: {
+    nombre:'AVANZADO', subtitulo:'Ciberseguridad Operacional', perfil:'Madurez media',
+    valor:'Reducción real del riesgo', margen:0.40, pvpRef:43521.74,
+    items:[
+      { sid:'madurez',   qty:30,  cost:590.81,    detalle:'Táctico · informe 30 h' },
+      { sid:'voc_vuln',  qty:350, cost:1750.00,   detalle:'350 activos · informe trimestral' },
+      { sid:'voc_easm',  qty:1,   cost:1356.00,   detalle:'1 dominio principal' },
+      { sid:'voc_brand', qty:1,   cost:1156.56,   detalle:'1 dominio · informe bimestral' },
+      { sid:'soc',       qty:50,  cost:17552.64,  detalle:'Medio · 50 activos', soc:'medio' },
+      { sid:'csirt',     qty:40,  cost:1267.25,   detalle:'Operación coordinada · 40 h anuales' },
+      { sid:'csirt_ctf', qty:1,   cost:900.00,    detalle:'1 ejercicio CTF / año' },
+      { sid:'sgsi',      qty:45,  cost:886.22,    detalle:'Táctico · 45 h soporte' },
+      { sid:'pdp',       qty:45,  cost:693.56,    detalle:'Táctico · 45 h soporte' },
+      { sid:'reportes',  qty:1,   cost:300.00,    detalle:'Trimestral', freq:'trimestral' }
+    ]
+  },
+  estrategico: {
+    nombre:'ESTRATÉGICO', subtitulo:'Ciberresiliencia Institucional', perfil:'Alta madurez y exigencia regulatoria',
+    valor:'Gobernanza y resiliencia', margen:0.35, pvpRef:113906.19,
+    items:[
+      { sid:'madurez',   qty:40,  cost:787.75,    detalle:'Resiliente · informe 40 h' },
+      { sid:'voc_vuln',  qty:500, cost:2000.00,   detalle:'500 activos · informe trimestral' },
+      { sid:'voc_easm',  qty:1,   cost:1356.00,   detalle:'EASM continuo 24/7' },
+      { sid:'voc_brand', qty:1,   cost:1156.56,   detalle:'Protección de marca continua 24/7' },
+      { sid:'voc_hard',  qty:50,  cost:3250.00,   detalle:'Hardening · 50 activos' },
+      { sid:'voc_ti',    qty:1,   cost:924.90,    detalle:'Threat Intelligence + cooperación intl.' },
+      { sid:'soc',       qty:100, cost:55904.00,  detalle:'Avanzado · 100 activos', soc:'avanzado' },
+      { sid:'csirt',     qty:60,  cost:1900.88,   detalle:'Gestión avanzada y crisis · 60 h anuales' },
+      { sid:'csirt_ctf', qty:2,   cost:1800.00,   detalle:'2 ejercicios CTF / año' },
+      { sid:'csirt_diag',qty:60,  cost:1541.50,   detalle:'Diagnóstico arquitectura · 60 h anuales' },
+      { sid:'pentest',   qty:1,   cost:1500.00,   detalle:'Caja blanca · 1 activo' },
+      { sid:'sgsi',      qty:70,  cost:1378.56,   detalle:'Resiliente · 70 h soporte' },
+      { sid:'pdp',       qty:70,  cost:1078.88,   detalle:'Resiliente · 70 h soporte' },
+      { sid:'reportes',  qty:1,   cost:400.00,    detalle:'Trimestral', freq:'trimestral' }
+    ]
+  }
+};
+
+// Resumen de características (Imagen 1) mostrado en las tarjetas de paquete
+const PKG_FEATURES = {
+  infima:['VOC: 90 activos + EASM + Marca','SOC inicial (5 activos)','CSIRT 12 h · SGSI/PDP 20 h','Reportes anuales'],
+  base:['VOC: 250 activos · trimestral','SOC básico (10 activos)','CSIRT 20 h · SGSI/PDP 30 h','Reportes semestrales'],
+  avanzado:['VOC: 350 activos + CTF','SOC medio (50 activos)','CSIRT 40 h · SGSI/PDP 45 h','Reportes trimestrales'],
+  estrategico:['VOC full + Hardening + TI','SOC avanzado (100 activos)','CSIRT 60 h + CTF + Pentest','Gobierno 70 h · trimestral']
+};
+
+/* ============================================================================
+   3) ESTADO Y UTILIDADES
+   ========================================================================== */
+const VERBO_NAME = Object.fromEntries(VERBOS.map(v => [v.id, v.name]));
+let cart = [];   // ítems del resumen
+let uid = 1;
+
+const money = n => '$' + (Number(n)||0).toLocaleString('es-EC',{minimumFractionDigits:2, maximumFractionDigits:2});
+const $ = sel => document.querySelector(sel);
+
+function fechaHoy(){
+  return new Date().toLocaleDateString('es-EC',{year:'numeric',month:'long',day:'numeric'});
+}
+
+/* ============================================================================
+   4) RENDER — TARJETAS DE PAQUETES (Modo A)
+   ========================================================================== */
+function renderPaquetes(){
+  const grid = $('#pkgGrid');
+  grid.innerHTML = Object.entries(PAQUETES).map(([k,p]) => {
+    const feats = (PKG_FEATURES[k]||[]).map(f => `<li>${f}</li>`).join('');
+    const base = p.items.reduce((a,i)=>a+i.cost,0);   // costo base anual (suma exacta)
+    const pvp  = base / (1 - p.margen);                // PVP = costo / (1 − margen)
+    return `
+    <div class="pkg-card" data-k="${k}">
+      <div class="pk-perfil">${p.perfil}</div>
+      <div class="pk-name">${p.nombre}</div>
+      <div class="pk-sub">${p.subtitulo}</div>
+      <div class="pk-pvp">${money(pvp)}<small>PVP anual (margen ${Math.round(p.margen*100)}%)</small></div>
+      <div class="pk-cost">Costo base: ${money(base)}</div>
+      <ul>${feats}</ul>
+      <div class="pk-value">${p.valor}</div>
+      <button class="btn btn-primary" data-load="${k}">Cargar paquete →</button>
+    </div>`;
+  }).join('');
+
+  grid.querySelectorAll('[data-load]').forEach(b =>
+    b.addEventListener('click', () => loadPaquete(b.dataset.load)));
+}
+
+/* ============================================================================
+   5) RENDER — CATÁLOGO DE SERVICIOS (Modo B)
+   ========================================================================== */
+function renderCatalogo(){
+  const cont = $('#catalog');
+  cont.innerHTML = VERBOS.map(v => {
+    const svcs = CATALOGO.filter(s => s.verbo === v.id);
+    const cards = svcs.map(s => svcCard(s)).join('');
+    return `
+      <div class="verb-group">
+        <div class="verb-bar">
+          <span class="num">${v.n}</span>
+          <span class="verb-name">${v.name}</span>
+          <span class="verb-desc">· ${v.desc}</span>
+        </div>
+        <div class="svc-grid">${cards}</div>
+      </div>`;
+  }).join('');
+
+  // Conectar botones "Agregar"
+  cont.querySelectorAll('[data-add]').forEach(b =>
+    b.addEventListener('click', () => addFromCatalog(b.dataset.add)));
+}
+
+function svcCard(s){
+  // Control de variable: select de nivel SOC, select de frecuencia, o input numérico
+  let varControl;
+  if (s.tieredSoc){
+    const opts = SOC_TIERS.map(t => `<option value="${t.id}" ${t.id==='medio'?'selected':''}>${t.label}</option>`).join('');
+    varControl = `
+      <div class="ctrl">
+        <label>Nivel de servicio</label>
+        <select id="soc-tier-${s.id}">${opts}</select>
+      </div>
+      <div class="ctrl">
+        <label>${s.varLabel}</label>
+        <input type="number" id="qty-${s.id}" min="1" step="1" value="${s.defQty}">
+      </div>`;
+  } else if (s.freq){
+    const opts = REPORTE_FREQ.map(f => `<option value="${f.id}" ${f.id==='trimestral'?'selected':''}>${f.label} ($${f.cost})</option>`).join('');
+    varControl = `
+      <div class="ctrl">
+        <label>${s.varLabel}</label>
+        <select id="freq-${s.id}">${opts}</select>
+      </div>`;
+  } else if (s.fixed){
+    varControl = `
+      <div class="ctrl">
+        <label>${s.varLabel}</label>
+        <input type="number" id="qty-${s.id}" min="1" step="1" value="${s.defQty}">
+      </div>`;
+  } else {
+    varControl = `
+      <div class="ctrl">
+        <label>${s.varLabel}</label>
+        <input type="number" id="qty-${s.id}" min="1" step="1" value="${s.defQty}">
+      </div>`;
+  }
+
+  const unitTag = s.pending
+    ? `<span class="pending-flag">Costo pendiente</span>`
+    : `<span class="unit-tag">${money(s.unit)}/${s.unidad}</span>`;
+
+  return `
+    <div class="svc-card ${s.pending?'pending':''}">
+      <div class="svc-name">${s.grupo?`<span style="color:var(--cyan-deep);font-weight:800">${s.grupo}</span> · `:''}${s.name}</div>
+      ${unitTag}
+      <div class="svc-row">
+        ${varControl}
+        <button class="add-btn" data-add="${s.id}" title="Agregar al resumen">+</button>
+      </div>
+      <div class="svc-note">${s.note}</div>
+    </div>`;
+}
+
+/* ============================================================================
+   6) AGREGAR ÍTEMS AL RESUMEN
+   ========================================================================== */
+function defaultMargin(){
+  const m = parseFloat($('#globalMargin').value);
+  return isNaN(m) ? 0.30 : m/100;
+}
+
+function addFromCatalog(sid){
+  const s = SVC[sid];
+  let unit = s.unit, qty, detalle = '', pending = !!s.pending, varLabel = s.varLabel, unidad = s.unidad;
+
+  if (s.tieredSoc){
+    const tierId = document.getElementById('soc-tier-'+sid).value;
+    const tier = SOC_TIERS.find(t => t.id===tierId);
+    unit = tier.unit;
+    qty = parseFloat(document.getElementById('qty-'+sid).value);
+    detalle = tier.label;
+  } else if (s.freq){
+    const fId = document.getElementById('freq-'+sid).value;
+    const f = REPORTE_FREQ.find(x => x.id===fId);
+    unit = f.cost; qty = 1; detalle = f.label; varLabel='Frecuencia'; unidad='reporte';
+  } else {
+    qty = parseFloat(document.getElementById('qty-'+sid).value);
+  }
+
+  if (isNaN(qty) || qty <= 0){
+    flash('La cantidad de "'+s.name+'" debe ser mayor que cero.', 'warn');
+    return;
+  }
+
+  cart.push({
+    uid: uid++, sid, verbo:s.verbo, grupo:s.grupo||'',
+    nombre:s.name, detalle, varLabel, unidad,
+    unit, qty, pending, margen: defaultMargin(), note:s.note
+  });
+  render();
+}
+
+function loadPaquete(key){
+  const p = PAQUETES[key];
+  // Reemplaza el contenido del resumen por el paquete (modo paquete cerrado),
+  // luego el usuario puede agregar/quitar/editar libremente.
+  cart = p.items.map(it => {
+    const s = SVC[it.sid];
+    const unit = it.cost / it.qty;            // costo unitario derivado del valor exacto
+    return {
+      uid: uid++, sid:it.sid, verbo:s.verbo, grupo:s.grupo||'',
+      nombre:s.name,
+      detalle: it.detalle || '',
+      varLabel: it.overVarLabel || s.varLabel,
+      unidad:   it.overUnidad   || s.unidad,
+      unit, qty: it.qty,
+      pending: it.overPending===false ? false : !!s.pending,
+      margen: p.margen, note:s.note,
+      fromPkg: p.nombre
+    };
+  });
+  flash(`Paquete ${p.nombre} cargado con margen sugerido ${Math.round(p.margen*100)}%. Puede editar cantidades, márgenes o agregar/quitar servicios.`, 'warn', true);
+  // Cambiar a pestaña de servicios para facilitar edición/adición
+  render();
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+/* ============================================================================
+   7) CÁLCULO Y RENDER DEL RESUMEN
+   ========================================================================== */
+function lineCost(it){ return it.pending ? 0 : it.unit * it.qty; }
+function linePvp(it){
+  const base = lineCost(it);
+  if (it.margen >= 1 || it.margen < 0) return null;      // margen inválido
+  return base / (1 - it.margen);
+}
+
+function render(){
+  const body = $('#summaryBody');
+  const totals = $('#totals');
+
+  if (cart.length === 0){
+    body.innerHTML = `
+      <div class="empty-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 002 1.6h9.7a2 2 0 002-1.6L23 6H6"/></svg>
+        <div>No hay servicios en la cotización.<br>Cargue un paquete o agregue servicios individuales.</div>
+      </div>`;
+    totals.style.display = 'none';
+    $('#summaryCount').textContent = 'Sin ítems seleccionados';
+    renderAlerts();
+    return;
+  }
+
+  const rows = cart.map(it => {
+    const base = lineCost(it);
+    const pvp = linePvp(it);
+    const invalid = (!it.pending && (isNaN(it.qty) || it.qty<=0)) || (it.margen>=1 || it.margen<0);
+    let rowClass = '';
+    if (it.pending) rowClass = 'pending';
+    else if (invalid) rowClass = 'invalid';
+
+    let note = '';
+    if (it.pending) note = `<div class="row-warn">Costo por ${it.unidad} pendiente: ingréselo para calcular.</div>`;
+    else if (it.margen>=1) note = `<div class="row-err">Margen ≥ 100%: el PVP no es calculable.</div>`;
+    else if (it.margen<0) note = `<div class="row-err">El margen no puede ser negativo.</div>`;
+    else if (isNaN(it.qty)||it.qty<=0) note = `<div class="row-err">Cantidad inválida.</div>`;
+
+    return `
+      <tr class="${rowClass}">
+        <td>
+          <span class="ci-verb">${VERBO_NAME[it.verbo]||''}${it.grupo?' · '+it.grupo:''}</span>
+          <div class="ci-name">${it.nombre}</div>
+          <div class="ci-detail">${it.detalle?it.detalle+' · ':''}${it.varLabel}</div>
+          ${note}
+        </td>
+        <td class="num"><input class="cart-input unit" type="number" min="0" step="0.0001"
+              value="${(it.unit).toFixed(4)}" data-act="unit" data-id="${it.uid}"
+              title="Costo unitario (${it.unidad})"></td>
+        <td class="num"><input class="cart-input" type="number" min="0" step="1"
+              value="${it.qty}" data-act="qty" data-id="${it.uid}"></td>
+        <td class="num">${it.pending ? '—' : money(base)}</td>
+        <td class="num"><input class="cart-input margin" type="number" min="0" max="99" step="1"
+              value="${Math.round(it.margen*100)}" data-act="margin" data-id="${it.uid}">%</td>
+        <td class="num pvp-cell">${pvp==null||it.pending ? '—' : money(pvp)}</td>
+        <td><button class="rm-btn" data-rm="${it.uid}" title="Eliminar">✕</button></td>
+      </tr>`;
+  }).join('');
+
+  body.innerHTML = `
+    <table class="cart">
+      <thead>
+        <tr>
+          <th>Servicio / componente</th>
+          <th class="r">C. unit.</th>
+          <th class="r">Cant.</th>
+          <th class="r">Costo base</th>
+          <th class="r">Margen</th>
+          <th class="r">PVP</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+
+  // Totales (sólo ítems válidos y no pendientes)
+  let totBase = 0, totPvp = 0;
+  cart.forEach(it => {
+    if (it.pending) return;
+    if (it.margen>=1 || it.margen<0) return;
+    if (isNaN(it.qty)||it.qty<=0) return;
+    totBase += lineCost(it);
+    totPvp  += linePvp(it);
+  });
+  const totMargin = totPvp - totBase;
+  const marginPct = totPvp>0 ? (totMargin/totPvp*100) : 0;
+
+  $('#tBase').textContent = money(totBase);
+  $('#tMargin').textContent = money(totMargin);
+  $('#tMarginPct').textContent = marginPct.toFixed(1)+'%';
+  $('#tPvp').innerHTML = money(totPvp)+' <small>USD</small>';
+  totals.style.display = 'block';
+  $('#summaryCount').textContent =
+    cart.length + (cart.length===1?' ítem':' ítems') + ' · PVP total ' + money(totPvp);
+
+  // Conectar inputs y botones de cada fila
+  body.querySelectorAll('input[data-act]').forEach(inp =>
+    inp.addEventListener('input', onCartEdit));
+  body.querySelectorAll('[data-rm]').forEach(b =>
+    b.addEventListener('click', () => { cart = cart.filter(x => x.uid != b.dataset.rm); render(); }));
+
+  renderAlerts();
+}
+
+function onCartEdit(e){
+  const id = e.target.dataset.id, act = e.target.dataset.act;
+  const it = cart.find(x => x.uid == id);
+  if (!it) return;
+  const val = parseFloat(e.target.value);
+  if (act==='qty')    it.qty = isNaN(val)? 0 : val;
+  if (act==='unit'){  it.unit = isNaN(val)? 0 : val; if (val>0) it.pending=false; }
+  if (act==='margin') it.margen = isNaN(val)? 0 : val/100;
+  render();
+}
+
+/* ============================================================================
+   8) MENSAJES DE VALIDACIÓN GLOBALES
+   ========================================================================== */
+function renderAlerts(){
+  const box = $('#alerts');
+  const msgs = [];
+
+  const gm = parseFloat($('#globalMargin').value);
+  if (!isNaN(gm) && gm >= 100) msgs.push(['err','El margen por defecto es ≥ 100%. El PVP no puede calcularse con ese margen.']);
+  if (!isNaN(gm) && gm < 0)   msgs.push(['err','El margen por defecto no puede ser negativo.']);
+
+  cart.forEach(it => {
+    if (it.margen>=1) msgs.push(['err',`"${it.nombre}": margen ≥ 100%, PVP no calculable.`]);
+    if (it.margen<0)  msgs.push(['err',`"${it.nombre}": margen negativo.`]);
+    if (!it.pending && (isNaN(it.qty)||it.qty<=0)) msgs.push(['err',`"${it.nombre}": la cantidad debe ser mayor que cero.`]);
+    if (it.pending)   msgs.push(['warn',`"${it.nombre}": costo por ${it.unidad} pendiente de definir; complételo en la columna "C. unit.".`]);
+  });
+
+  if (msgs.length===0){ box.innerHTML=''; return; }
+  const icon = type => type==='err'
+    ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v5M12 16h.01"/></svg>'
+    : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.3 3.9 1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>';
+  // Dedup
+  const seen = new Set();
+  box.innerHTML = msgs.filter(([t,m]) => { const k=t+m; if(seen.has(k))return false; seen.add(k); return true; })
+    .map(([t,m]) => `<div class="alert ${t}">${icon(t)}<span>${m}</span></div>`).join('');
+}
+
+let flashTimer=null;
+function flash(msg, type='warn', persist=false){
+  const box = $('#alerts');
+  const icon = type==='err'
+    ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v5M12 16h.01"/></svg>'
+    : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 100 20 10 10 0 000-20z"/><path d="M12 8v5M12 16h.01"/></svg>';
+  const el = document.createElement('div');
+  el.className = 'alert '+type;
+  el.innerHTML = icon+'<span>'+msg+'</span>';
+  box.prepend(el);
+  if (!persist){ clearTimeout(flashTimer); flashTimer=setTimeout(()=>el.remove(), 4200); }
+}
+
+/* ============================================================================
+   9) ACCIONES GLOBALES
+   ========================================================================== */
+function clearAll(){
+  if (cart.length && !confirm('¿Vaciar toda la cotización?')) return;
+  cart = [];
+  render();
+}
+function applyMarginAll(){
+  const m = defaultMargin();
+  if (cart.length===0){ flash('No hay ítems en el resumen.', 'warn'); return; }
+  cart.forEach(it => it.margen = m);
+  flash(`Margen ${Math.round(m*100)}% aplicado a todos los ítems.`, 'warn');
+  render();
+}
+function printQuote(){
+  if (cart.length===0){ flash('Agregue al menos un servicio antes de imprimir.', 'err'); return; }
+  $('#printMeta').textContent = 'Fecha: '+fechaHoy()+'  ·  Moneda: USD  ·  Vigencia referencial: 30 días';
+  window.print();
+}
+
+/* ============================================================================
+   10) INICIALIZACIÓN
+   ========================================================================== */
+function initTabs(){
+  document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    const tab = t.dataset.tab;
+    $('#tab-paquetes').style.display  = tab==='paquetes'  ? 'block':'none';
+    $('#tab-servicios').style.display = tab==='servicios' ? 'block':'none';
+  }));
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  $('#todayMeta').textContent = fechaHoy();
+  renderPaquetes();
+  renderCatalogo();
+  initTabs();
+  render();
+
+  $('#globalMargin').addEventListener('input', renderAlerts);
+  $('#clearAll').addEventListener('click', clearAll);
+  $('#clearAll2').addEventListener('click', clearAll);
+  $('#applyMarginAll').addEventListener('click', applyMarginAll);
+  $('#printQuote').addEventListener('click', printQuote);
+  $('#printQuote2').addEventListener('click', printQuote);
+});
+</script>
+</body>
+</html>
